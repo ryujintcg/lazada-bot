@@ -19,7 +19,7 @@ try:
 except Exception:
     captcha_solver = None
 
-VERSION = "2.3"
+VERSION = "2.4"
 HERE = os.path.dirname(__file__)
 SESSION_FILE = os.path.join(HERE, "lazada_session.json")  # default profile
 CHROME_CHANNEL = "chrome"
@@ -381,6 +381,18 @@ def complete_checkout(page, name, url, max_price, payment, dry_run, log):
             handle_captcha(page, log)
         page.wait_for_timeout(2500)
 
+        result_png = os.path.join(HERE, f"checkout_{safe}_result.png")
+        try:
+            page.screenshot(path=result_png)
+        except Exception:
+            pass
+        try:
+            post = page.inner_text("body").lower()
+        except Exception:
+            post = ""
+        post_url = (page.url or "").lower()
+
+        # 1) Instant success — Wallet/card paid, thank-you page.
         if page.query_selector(SEL["thank_you"]):
             amount = ""
             el = page.query_selector(SEL["thank_you_amount"])
@@ -396,12 +408,48 @@ def complete_checkout(page, name, url, max_price, payment, dry_run, log):
             _record_order(name, order_no, amount)
             return "ok"
 
+        # 2) Still on the checkout page -> order was NOT placed; retry.
+        if "select payment method" in post and "place order" in post:
+            log("still on checkout after Place Order — not placed")
+            return "retry"
+
+        # 3) Order RESERVED but needs manual payment (PayNow / bank transfer, ~30 min).
+        pending_signals = ["paynow", "scan to pay", "scan the qr", "complete your payment",
+                           "complete the payment", "pay within", "payment reference", "reference no",
+                           "awaiting payment", "pending payment", "order has been placed", "transfer to"]
+        if any(s in post for s in pending_signals) or "payment" in post_url or "cashier" in post_url:
+            amount = _extract_amount(post)
+            log(f"ORDER RESERVED — pending PayNow/manual payment (amount {amount})")
+            notifier.send_event("⏰ ORDER RESERVED — PAY WITHIN ~30 MIN",
+                                description=f"{name}\nComplete the *PayNow / bank transfer* now — the order is held "
+                                            "only ~30 minutes, then it's cancelled.",
+                                color=0xE67E22, url=url, fields={"Amount": amount or "?"}, ping=True)
+            try:
+                notifier.send_file(result_png, f"💳 {name}: scan / pay this within ~30 min")
+            except Exception:
+                pass
+            _record_order(name, "pending-payment", amount)
+            return "pending"
+
+        # 4) Couldn't confirm — surface the page so the user can check.
         log("clicked Place Order but could not confirm")
-        notify(f"⚠️ *Check your order* for *{name}* — clicked Place Order, unconfirmed.\n{url}")
+        notifier.send_event("⚠️ Check your order", description=f"{name}: clicked Place Order, unconfirmed.",
+                            color=0xF1C40F, url=url)
+        try:
+            notifier.send_file(result_png, f"{name}: post-checkout page — please verify")
+        except Exception:
+            pass
         return "stop"
     except Exception as e:
         log(f"checkout error: {e}")
         return "retry"
+
+
+def _extract_amount(text):
+    nums = re.findall(r"\$\s*([\d,]+\.\d{2})", text or "")
+    if not nums:
+        return ""
+    return "$" + max(nums, key=lambda x: float(x.replace(",", "")))
 
 
 def _record_order(name, order_no, amount):
@@ -696,9 +744,10 @@ class TaskWorker(threading.Thread):
 
                                 self.status("checking out")
                                 outcome = complete_checkout(page, name, url, max_price, payment, dry_run, self.log)
-                                if outcome == "ok":
+                                if outcome in ("ok", "pending"):
                                     self.purchased = True
-                                    self.status("purchased ✓")
+                                    self.status("purchased ✓" if outcome == "ok"
+                                                else "ORDERED — PAY (PayNow, 30 min)")
                                     return
                                 elif outcome == "stop":
                                     self.status("checkout stopped")

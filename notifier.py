@@ -1,3 +1,4 @@
+import os
 import re
 import requests
 
@@ -86,3 +87,24 @@ def send_event(title, description="", fields=None, color=0x2ECC71, url=None, pin
         payload["content"] = f"<@&{_role_id}>"
         payload["allowed_mentions"] = {"roles": [_role_id]}
     return _post(payload)
+
+
+def send_file(path, content=""):
+    """Upload an image/file to the webhook (e.g. a PayNow QR screenshot)."""
+    if not _webhook_url or not os.path.exists(path):
+        return False
+    try:
+        with open(path, "rb") as fh:
+            files = {"file": (os.path.basename(path), fh, "image/png")}
+            data = {}
+            if content:
+                data["content"] = _to_discord(content)[:1900]
+            if _role_id and content:
+                data["content"] = f"<@&{_role_id}> " + data["content"]
+            r = requests.post(_webhook_url, data=data, files=files, timeout=20)
+            if not r.ok:
+                print(f"Discord file error {r.status_code}: {r.text}")
+            return r.ok
+    except Exception as e:
+        print(f"Discord file error: {e}")
+        return False

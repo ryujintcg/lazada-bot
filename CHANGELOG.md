@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.4 — PayNow / pending-payment orders
+- **Handles PayNow / bank-transfer orders.** When Place Order reserves the order
+  but needs a manual payment (no instant Wallet/card), the bot now recognises it
+  as a *success* (no false "checkout failed", no retry/duplicate), marks it bought,
+  and **sends the payment-page screenshot (PayNow QR) to Discord** with a
+  "pay within ~30 min" alert so you can complete it in time.
+- Distinguishes three post-checkout states: instant success, order-not-placed
+  (retries), and order-reserved-pending-payment.
+- Discord can now attach images (the QR / post-checkout page screenshot).
+
 ## v2.3 — scaling + hardening
 - **Multi-account** — define accounts (label = phone) and assign one per task;
   each account keeps its own login session.
