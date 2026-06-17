@@ -72,7 +72,7 @@ def apply(info, log):
     try:
         tmp = tempfile.mkdtemp()
         zpath = os.path.join(tmp, "update.zip")
-        log("downloading update…")
+        log("downloading update...")
         req = urllib.request.Request(url, headers={"User-Agent": "LazadaBot"})
         with urllib.request.urlopen(req, timeout=60) as r, open(zpath, "wb") as f:
             data = r.read()
@@ -83,11 +83,11 @@ def apply(info, log):
         if expected:
             actual = hashlib.sha256(data).hexdigest()
             if actual != expected:
-                log(f"SHA-256 MISMATCH — refusing update (expected {expected[:12]}…, got {actual[:12]}…)")
+                log(f"SHA-256 MISMATCH - refusing update (expected {expected[:12]}..., got {actual[:12]}...)")
                 return False
-            log("SHA-256 verified ✓")
+            log("SHA-256 verified OK")
         else:
-            log("warning: no sha256 in manifest — skipping integrity check")
+            log("warning: no sha256 in manifest - skipping integrity check")
 
         updated = 0
         with zipfile.ZipFile(zpath) as z:
@@ -98,7 +98,7 @@ def apply(info, log):
                         dst.write(src.read())
                     updated += 1
                     log(f"updated {base}")
-        log(f"update complete — {updated} file(s)")
+        log(f"update complete - {updated} file(s)")
         return updated > 0
     except Exception as e:
         log(f"update failed: {e}")
