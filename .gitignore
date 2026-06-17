@@ -1,0 +1,39 @@
+# Virtual environment
+venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Secrets
+.env
+
+# Playwright session/login state
+storage_state.json
+*.json.bak
+lazada_session.json
+
+# Logs
+*.log
+
+# VS Code
+.vscode/
+
+# Test reports
+playwright-report/
+test-results/
+
+# ignore config file with sensitive info
+config.py
+
+# user data / secrets (webhook URL, tasks, saved orders)
+bot_data.json
+orders.log
+
+# build artifacts
+Lazada-Bot-Share/
+Lazada-Bot-Share.zip
+
+#images
+*.png
+*.jpg
