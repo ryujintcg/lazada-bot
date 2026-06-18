@@ -20,7 +20,7 @@ try:
 except Exception:
     captcha_solver = None
 
-VERSION = "2.5.3"
+VERSION = "2.5.4"
 HERE = os.path.dirname(__file__)
 SESSION_FILE = os.path.join(HERE, "lazada_session.json")  # default profile
 CHROME_CHANNEL = "chrome"
@@ -761,12 +761,25 @@ class TaskWorker(threading.Thread):
                             result, buy_btn = check_stock(page, url, variant, self.log)
 
                             if result == "captcha":
-                                self.status("CAPTCHA")
-                                if handle_captcha(page, self.log):
-                                    continue
-                                errors += 1
-                                notify(f"⚠️ *CAPTCHA* on *{name}* — solve in window.")
-                                self._wait(self._backoff(interval, errors)); continue
+                                self.status("CAPTCHA — solve in window")
+                                notify(f"⚠️ *CAPTCHA* on *{name}* — solve it in the browser window.")
+                                handle_captcha(page, self.log)  # best-effort auto-solve
+                                # Watch the page; resume the moment it's cleared (auto or manual).
+                                solved = False
+                                waited = 0
+                                while waited < 180 and not self._stop.is_set():
+                                    if not check_for_captcha(page):
+                                        solved = True
+                                        break
+                                    time.sleep(2); waited += 2
+                                if solved:
+                                    self.log("CAPTCHA cleared — resuming")
+                                    self.status("resuming")
+                                    errors = 0
+                                else:
+                                    errors += 1
+                                    self._wait(self._backoff(interval, errors))
+                                continue
 
                             if result == "error":
                                 errors += 1

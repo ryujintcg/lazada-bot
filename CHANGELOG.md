@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.5.4 — resume right after a CAPTCHA is solved
+- When a CAPTCHA appears, the bot now **watches the page and resumes the instant
+  it's cleared** (auto-solve or you solving it manually), instead of sleeping a
+  backoff and reloading the page (which discarded your solved state).
+
 ## v2.5.3 — fix unsolvable CAPTCHA (image blocking)
 - Removed in-browser image/font blocking. It was stripping the images out of
   Lazada's robot-check, so the CAPTCHA couldn't render and **couldn't be solved**.
