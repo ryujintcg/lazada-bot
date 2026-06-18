@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.5.5 — expand "View all methods" to find PayNow
+- Some accounts only show Credit/Debit Card + Wallet by default, with PayNow hidden
+  under **"View all methods"**. The payment selector now **expands that list first**,
+  so choosing PayNow Transfer actually works (instead of getting stuck on a card form).
+
 ## v2.5.4 — resume right after a CAPTCHA is solved
 - When a CAPTCHA appears, the bot now **watches the page and resumes the instant
   it's cleared** (auto-solve or you solving it manually), instead of sleeping a

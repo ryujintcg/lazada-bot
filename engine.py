@@ -20,7 +20,7 @@ try:
 except Exception:
     captcha_solver = None
 
-VERSION = "2.5.4"
+VERSION = "2.5.5"
 HERE = os.path.dirname(__file__)
 SESSION_FILE = os.path.join(HERE, "lazada_session.json")  # default profile
 CHROME_CHANNEL = "chrome"
@@ -253,8 +253,33 @@ def select_payment(page, payment, log):
     if not payment:
         return True
     try:
+        # The default list often shows only a couple of methods; PayNow & others
+        # are hidden behind "View all methods". Expand it if the wanted method
+        # isn't already on screen.
         loc = page.get_by_text(payment, exact=False).first
+        visible = False
+        try:
+            visible = loc.count() > 0 and loc.is_visible()
+        except Exception:
+            visible = False
+        if not visible:
+            for label in ["View all methods", "View all", "More payment methods"]:
+                el = page.get_by_text(label, exact=False).first
+                try:
+                    if el.count() > 0 and el.is_visible():
+                        el.click(timeout=2500)
+                        log(f"expanded '{label}'")
+                        human_pause(1.0, 1.8)
+                        break
+                except Exception:
+                    pass
+            loc = page.get_by_text(payment, exact=False).first
+
         loc.wait_for(state="visible", timeout=6000)
+        try:
+            loc.scroll_into_view_if_needed(timeout=2000)
+        except Exception:
+            pass
         try:
             loc.click(timeout=4000)
         except Exception:
@@ -266,7 +291,7 @@ def select_payment(page, payment, log):
         human_pause(0.6, 1.2)
         return True
     except Exception as e:
-        log(f"could not select payment {payment!r}: {e}")
+        log(f"payment {payment!r} not selectable ({e}) — using pre-selected method")
         return False
 
 
