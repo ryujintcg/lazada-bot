@@ -1,6 +1,6 @@
 {
-  "version": "2.5.1",
+  "version": "2.5.2",
   "url": "https://github.com/ryujintcg/lazada-bot/releases/latest/download/Lazada-Bot-Share.zip",
-  "sha256": "69ac2bcb269b0c69ad7a94c869c920f97aaca826390192057dee91146752b632",
-  "notes": "Detect items that sell out during checkout (empty cart / 0 items) and resume monitoring instead of placing an empty order."
+  "sha256": "ed8e785c80ff715e3417470847654131d77b8e5362b91352f638a78e39f72a07",
+  "notes": "Add PayNow Transfer to the payment options so the bot can place QR-paid orders (fixes the 'not placed' loop from card payments)."
 }

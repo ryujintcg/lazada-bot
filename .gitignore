@@ -12,6 +12,7 @@ __pycache__/
 storage_state.json
 *.json.bak
 lazada_session.json
+lazada_session*.json
 
 # Logs
 *.log

@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.5.2 — PayNow in the payment dropdown
+- Added **PayNow Transfer** to the task Payment-method options. Choosing it lets the
+  bot place orders that pay by QR (no card details to enter), which also fixes the
+  "still on checkout — not placed" loop you get when a card payment needs manual entry.
+
 ## v2.5.1 — handle sold-out-during-checkout
 - If an item **sells out between detection and checkout** (cart shows "Unavailable
   Items" / 0 items / $0.00), the bot no longer tries to place an empty order or

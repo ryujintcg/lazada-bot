@@ -32,8 +32,8 @@ DATA_FILE = os.path.join(HERE, "bot_data.json")
 LOG_FILE = os.path.join(HERE, "bot.log")
 CHANGELOG = os.path.join(HERE, "CHANGELOG.md")
 
-PAYMENTS = ["", "Lazada Wallet", "Credit / Debit Card", "Cash on Delivery",
-            "PayLater", "GrabPay", "Bank Transfer"]
+PAYMENTS = ["", "PayNow Transfer", "Lazada Wallet", "Credit / Debit Card",
+            "Cash on Delivery", "PayLater", "GrabPay", "Bank Transfer"]
 
 COLS = ["Name", "Product URL", "Account", "Variant", "Qty", "Proxy", "Interval", "Mode", "Status", ""]
 C_NAME, C_URL, C_ACCT, C_VAR, C_QTY, C_PROXY, C_INT, C_MODE, C_STATUS, C_ACT = range(10)
