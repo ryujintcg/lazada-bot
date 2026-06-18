@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.5.1 — handle sold-out-during-checkout
+- If an item **sells out between detection and checkout** (cart shows "Unavailable
+  Items" / 0 items / $0.00), the bot no longer tries to place an empty order or
+  report a confusing result — it logs "sold out at checkout" and goes straight back
+  to monitoring (it may restock).
+
 ## v2.5 — per-task proxy pool, better proxy test, quick edit
 - **Per-task proxy list** — each task can hold multiple proxies (one per line). It
   fails over to the next proxy if one errors out (re-login stays on the same proxy).

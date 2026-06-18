@@ -20,7 +20,7 @@ try:
 except Exception:
     captcha_solver = None
 
-VERSION = "2.5"
+VERSION = "2.5.1"
 HERE = os.path.dirname(__file__)
 SESSION_FILE = os.path.join(HERE, "lazada_session.json")  # default profile
 CHROME_CHANNEL = "chrome"
@@ -348,6 +348,11 @@ def complete_checkout(page, name, url, max_price, payment, dry_run, log):
             pass
         log(f"checkout page url: {page.url}")
         body = page.inner_text("body").lower()
+
+        # Item sold out during the buy attempt — checkout shows it unavailable / 0 items.
+        if "unavailable item" in body or "(0 item" in body:
+            log("item unavailable at checkout (sold out during buy) — back to monitoring")
+            return "unavailable"
 
         if max_price and max_price > 0:
             nums = [float(x.replace(",", "")) for x in re.findall(r"\$?\s*([\d,]+\.\d{2})", body)]
@@ -813,6 +818,9 @@ class TaskWorker(threading.Thread):
                                 elif outcome == "limit":
                                     self.status("limit reached — stopped")
                                     return
+                                elif outcome == "unavailable":
+                                    self.status("sold out at checkout — monitoring")
+                                    self._wait(min(interval, 4)); continue
                                 elif outcome == "stop":
                                     self.status("checkout stopped")
                                     return
