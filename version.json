@@ -1,6 +1,6 @@
 {
-  "version": "2.6.1",
+  "version": "2.6.2",
   "url": "https://github.com/ryujintcg/lazada-bot/releases/latest/download/Lazada-Bot-Share.zip",
-  "sha256": "05f6e1e017333bb91e213bfefc273700cf7dedaa78f57ff0930afc5649e076bd",
-  "notes": "Scope keyword monitoring to a single shop: put the seller's store URL alongside the keyword."
+  "sha256": "ed6b87c8fde17d15a8b7139c2f5e8d8be42180c44fd06607bd112a4d2f5137db",
+  "notes": "Discord ping now works for a user ID or a role ID (was role-only, so user IDs got no ping)."
 }

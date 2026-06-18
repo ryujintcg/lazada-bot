@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import requests
@@ -84,8 +85,11 @@ def send_event(title, description="", fields=None, color=0x2ECC71, url=None, pin
         embed["fields"] = [{"name": k, "value": str(v), "inline": True} for k, v in fields.items()]
     payload = {"embeds": [embed]}
     if ping and _role_id:
-        payload["content"] = f"<@&{_role_id}>"
-        payload["allowed_mentions"] = {"roles": [_role_id]}
+        rid = re.sub(r"\D", "", _role_id)
+        if rid:
+            # Ping whether the ID is a USER or a ROLE — include both mention forms.
+            payload["content"] = f"<@{rid}> <@&{rid}>"
+            payload["allowed_mentions"] = {"users": [rid], "roles": [rid]}
     return _post(payload)
 
 
@@ -96,11 +100,15 @@ def send_file(path, content=""):
     try:
         with open(path, "rb") as fh:
             files = {"file": (os.path.basename(path), fh, "image/png")}
-            data = {}
-            if content:
-                data["content"] = _to_discord(content)[:1900]
-            if _role_id and content:
-                data["content"] = f"<@&{_role_id}> " + data["content"]
+            body = _to_discord(content)[:1800] if content else ""
+            payload = {}
+            rid = re.sub(r"\D", "", _role_id) if _role_id else ""
+            if rid:
+                body = f"<@{rid}> <@&{rid}> " + body
+                payload["allowed_mentions"] = {"users": [rid], "roles": [rid]}
+            if body:
+                payload["content"] = body
+            data = {"payload_json": json.dumps(payload)} if payload else {}
             r = requests.post(_webhook_url, data=data, files=files, timeout=20)
             if not r.ok:
                 print(f"Discord file error {r.status_code}: {r.text}")

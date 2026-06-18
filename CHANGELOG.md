@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.6.2 — ping works for a user OR a role
+- The Discord ping field now accepts **either a user ID or a role ID** and pings
+  correctly either way (it was only doing role mentions before, so a user ID got
+  no ping). Also fixed the @ping on image (QR) alerts.
+
 ## v2.6.1 — scope keyword monitor to one shop
 - A keyword task can now be **scoped to a single shop**: put the seller's store URL
   in the Product URL field alongside the keyword, and it only scans that shop's
