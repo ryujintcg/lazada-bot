@@ -1,6 +1,6 @@
 {
-  "version": "2.5.5",
+  "version": "2.6",
   "url": "https://github.com/ryujintcg/lazada-bot/releases/latest/download/Lazada-Bot-Share.zip",
-  "sha256": "43f730ff2a86dcfc4cca25ca2db51b701b6bca639cb1763d91dd6ddb7ce6cf00",
-  "notes": "Expand 'View all methods' so PayNow Transfer can be selected on accounts where it's hidden behind the card/wallet defaults."
+  "sha256": "08a6fd885b4f956e2ae871df845ecf423b9a253179cb1ece5803ade4adbe09bf",
+  "notes": "Keyword (search) monitoring: watch Lazada search for a keyword and ping Discord when a new matching listing appears."
 }

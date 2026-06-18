@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.6 — keyword (search) monitoring
+- **Keyword monitor** — a task can now watch Lazada *search results* for a keyword
+  instead of a fixed product URL. Set the **Keyword** field; it scans the search,
+  baselines what's already there, and **pings Discord when a NEW listing matching
+  the keyword appears** (great for catching fresh drops). Alert-only — it links the
+  new product so you can grab it (or point a buy task at it).
+
 ## v2.5.5 — expand "View all methods" to find PayNow
 - Some accounts only show Credit/Debit Card + Wallet by default, with PayNow hidden
   under **"View all methods"**. The payment selector now **expands that list first**,

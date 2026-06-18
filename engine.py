@@ -20,7 +20,7 @@ try:
 except Exception:
     captcha_solver = None
 
-VERSION = "2.5.5"
+VERSION = "2.6"
 HERE = os.path.dirname(__file__)
 SESSION_FILE = os.path.join(HERE, "lazada_session.json")  # default profile
 CHROME_CHANNEL = "chrome"
@@ -329,6 +329,51 @@ def check_stock(page, url, variant, log):
     except Exception as e:
         log(f"stock check error: {e}")
         return ("error", None)
+
+
+def keyword_check(page, keyword, seen, log):
+    """Scan Lazada search results for `keyword`. Adds matches to `seen` and
+    returns (status, new_matches) where new_matches is a list of (title, url)
+    not seen before. status is 'ok' / 'captcha' / 'error'."""
+    import urllib.parse
+    q = urllib.parse.quote(keyword)
+    url = f"https://www.lazada.sg/catalog/?q={q}"
+    try:
+        page.goto(url, wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(2500)
+        if check_for_captcha(page):
+            return ("captcha", [])
+        terms = [t.lower() for t in keyword.split() if t.strip()]
+        found = {}
+        for a in page.query_selector_all("a[href*='/products/']"):
+            try:
+                href = a.get_attribute("href") or ""
+                if "/products/" not in href:
+                    continue
+                if href.startswith("//"):
+                    full = "https:" + href
+                elif href.startswith("/"):
+                    full = "https://www.lazada.sg" + href
+                else:
+                    full = href
+                title = (a.get_attribute("title") or a.inner_text() or "").strip()
+                if not title:
+                    continue
+                low = title.lower()
+                if terms and not all(t in low for t in terms):
+                    continue
+                found[full.split("?")[0]] = title
+            except Exception:
+                continue
+        new = []
+        for base, title in found.items():
+            if base not in seen:
+                seen.add(base)
+                new.append((title, base))
+        return ("ok", new)
+    except Exception as e:
+        log(f"keyword scan error: {e}")
+        return ("error", [])
 
 
 def set_quantity(page, quantity, log):
@@ -747,6 +792,12 @@ class TaskWorker(threading.Thread):
         fast = bool(self.task.get("fast"))
         self._account = account
 
+        keyword = (self.task.get("keyword") or "").strip()
+        if keyword:
+            self._await_schedule()
+            self._run_keyword(keyword, interval, account)
+            return
+
         # Per-task proxy pool — fails over to the next proxy on a worker error.
         proxies_list = self.task.get("proxies")
         if not proxies_list:
@@ -891,6 +942,53 @@ class TaskWorker(threading.Thread):
                 if errors == 1 or errors % 5 == 0:
                     notifier.send_event("💥 Task error", description=f"{name}: {e}", color=0xE74C3C)
                 self._wait(wait)
+
+    def _run_keyword(self, keyword, interval, account):
+        """Alert-only mode: watch Lazada search for `keyword`, ping on new listings."""
+        name = self.task["name"]
+        plist = self.task.get("proxies") or ([self.task["proxy"]] if self.task.get("proxy") else [""])
+        proxy = parse_proxy(plist[0] if plist else "")
+        session_file = session_path(account, "")
+        seen = set()
+        first = True
+        self.log(f"keyword monitor: '{keyword}'")
+        while not self._stop.is_set():
+            try:
+                with sync_playwright() as p:
+                    browser, context = _new_context(p, proxy, session_file)
+                    page = context.new_page()
+                    try:
+                        while not self._stop.is_set():
+                            self.status("scanning")
+                            res, items = keyword_check(page, keyword, seen, self.log)
+                            if res == "captcha":
+                                self.status("CAPTCHA — solve in window")
+                                notify(f"⚠️ *CAPTCHA* on *{name}* (keyword) — solve in window.")
+                                handle_captcha(page, self.log)
+                                waited = 0
+                                while waited < 180 and not self._stop.is_set():
+                                    if not check_for_captcha(page):
+                                        break
+                                    time.sleep(2); waited += 2
+                                continue
+                            if first:
+                                first = False
+                                self.log(f"baseline: {len(seen)} existing matches (won't alert on these)")
+                            else:
+                                for title, link in items:
+                                    self.log(f"NEW match: {title}")
+                                    notifier.send_event("🔎 New listing match", description=title,
+                                                        url=link, color=0x2ECC71, ping=True)
+                            self.status(f"watching ({len(seen)} seen)")
+                            self._wait(interval)
+                    finally:
+                        try:
+                            browser.close()
+                        except Exception:
+                            pass
+            except Exception as e:
+                self.log(f"keyword worker error: {e}")
+                self._wait(self._backoff(interval, 1))
 
     @staticmethod
     def _backoff(interval, errors):
