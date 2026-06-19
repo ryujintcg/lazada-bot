@@ -1,6 +1,6 @@
 {
-  "version": "2.6.4",
+  "version": "2.7",
   "url": "https://github.com/ryujintcg/lazada-bot/releases/latest/download/Lazada-Bot-Share.zip",
-  "sha256": "b1cca0ad152fe53588cfd8213e7caa1248adfb5056dbe813a6f02dc77b32ce4f",
-  "notes": "Faster checkout: poll for the result instead of waiting out long fixed timeouts."
+  "sha256": "f952d2376dfa0eee5b299230b9a9078d55b8119efcd843c126be29ab8c0624bc",
+  "notes": "Watch-list task: HTTP-poll a batch of product URLs in parallel and open a browser only to check out the one that drops."
 }

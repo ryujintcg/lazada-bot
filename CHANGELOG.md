@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.7 — watch-list (lightweight concurrent monitor)
+- New **Watch list** task: put many product URLs (one per line) and it **HTTP-polls
+  them all in parallel** (a thread pool, no browser) for stock. When one looks like
+  it dropped, it **opens a single browser, verifies, and checks out** that item — then
+  keeps watching the rest. Lets you monitor a big batch cheaply (no browser-per-item)
+  and only spend a browser on an actual drop.
+- Heuristic, like Fast monitor: stock is read from the page's HTML, which Lazada
+  renders with JS, so for must-win items a dedicated browser task is still the most
+  reliable. Tick "Alert only" to just get pinged instead of auto-buying.
+
 ## v2.6.4 — faster checkout
 - Checkout no longer waits out long fixed timeouts (a ~6s new-tab wait + an ~8s
   "network idle" wait that Lazada never satisfies). It now **polls fast and resolves

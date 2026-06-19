@@ -20,7 +20,7 @@ try:
 except Exception:
     captcha_solver = None
 
-VERSION = "2.6.4"
+VERSION = "2.7"
 HERE = os.path.dirname(__file__)
 SESSION_FILE = os.path.join(HERE, "lazada_session.json")  # default profile
 CHROME_CHANNEL = "chrome"
@@ -382,6 +382,35 @@ def keyword_check(page, keyword, seen, log, scope_url=""):
     except Exception as e:
         log(f"keyword scan error: {e}")
         return ("error", [])
+
+
+def http_stock(url):
+    """Browser-free stock check via a single HTTP GET. Returns
+    'in_stock' / 'out_of_stock' / 'captcha' / 'unknown' (heuristic, no log — safe
+    to run in a thread pool)."""
+    try:
+        headers = {
+            "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                           "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"),
+            "Accept-Language": "en-SG,en;q=0.9",
+        }
+        r = requests.get(url, headers=headers, timeout=12)
+        if not r.ok:
+            return "unknown"
+        final = (r.url or "").lower()
+        if "/punish" in final or "captcha" in final or "sec.lazada" in final:
+            return "captcha"
+        low = r.text.lower()
+        m = re.search(r'"(?:quantity|stock)"\s*:\s*"?(\d+)', low)
+        if m:
+            return "in_stock" if int(m.group(1)) > 0 else "out_of_stock"
+        if any(s in low for s in ["out of stock", "sold out", "add to wishlist"]):
+            return "out_of_stock"
+        if "add to cart" in low or "buy now" in low:
+            return "in_stock"
+        return "unknown"
+    except Exception:
+        return "unknown"
 
 
 def set_quantity(page, quantity, log):
@@ -837,6 +866,12 @@ class TaskWorker(threading.Thread):
         fast = bool(self.task.get("fast"))
         self._account = account
 
+        watchlist = [u.strip() for u in (self.task.get("watchlist") or []) if u.strip()]
+        if watchlist:
+            self._await_schedule()
+            self._run_watchlist(watchlist, interval, account, qty, payment, max_price, alert_only)
+            return
+
         keyword = (self.task.get("keyword") or "").strip()
         if keyword:
             self._await_schedule()
@@ -1035,6 +1070,102 @@ class TaskWorker(threading.Thread):
             except Exception as e:
                 self.log(f"keyword worker error: {e}")
                 self._wait(self._backoff(interval, 1))
+
+    def _run_watchlist(self, urls, interval, account, qty, payment, max_price, alert_only):
+        """Lightweight concurrent monitor: HTTP-poll many URLs in parallel; only
+        open a browser to check out the one(s) that drop."""
+        import concurrent.futures
+        session_file = session_path(account, "")
+        purchased = set()
+        last_unknown = {}
+        self.log(f"watch list: {len(urls)} URLs (lightweight HTTP poll)")
+        while not self._stop.is_set():
+            active = [u for u in urls if u not in purchased]
+            if not active:
+                self.status("all done ✓")
+                return
+            self.status(f"polling {len(active)} URLs")
+            results = {}
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=min(12, len(active))) as ex:
+                    futs = {ex.submit(http_stock, u): u for u in active}
+                    for f in concurrent.futures.as_completed(futs, timeout=30):
+                        u = futs[f]
+                        try:
+                            results[u] = f.result()
+                        except Exception:
+                            results[u] = "unknown"
+            except Exception as e:
+                self.log(f"poll error: {e}")
+
+            now = time.time()
+            candidates = []
+            for u, r in results.items():
+                if r in ("in_stock", "captcha"):
+                    candidates.append(u)
+                elif r == "unknown" and now - last_unknown.get(u, 0) > 90:
+                    last_unknown[u] = now
+                    candidates.append(u)  # HTTP couldn't read it — verify in browser occasionally
+
+            if candidates and not self._stop.is_set():
+                if alert_only:
+                    for u in candidates:
+                        self.log(f"possible stock: {u}")
+                        notifier.send_event("🟢 Possible stock (watch list)", description=u,
+                                            url=u, color=0x2ECC71, ping=True)
+                        purchased.add(u)
+                else:
+                    self._watchlist_checkout(candidates, session_file, qty, payment, max_price, purchased)
+            self._wait(interval)
+
+    def _watchlist_checkout(self, candidates, session_file, qty, payment, max_price, purchased):
+        """Open one browser and check out each candidate that's genuinely in stock."""
+        name = self.task["name"]
+        try:
+            with sync_playwright() as p:
+                browser, context = _new_context(p, None, session_file)
+                page = context.new_page()
+                try:
+                    for u in candidates:
+                        if self._stop.is_set():
+                            break
+                        self.status("DROP — verifying")
+                        result, buy = check_stock(page, u, "", self.log)
+                        if result == "captcha":
+                            self.status("CAPTCHA — solve in window")
+                            notify(f"⚠️ *CAPTCHA* on *{name}* (watch list) — solve in window.")
+                            handle_captcha(page, self.log)
+                            w = 0
+                            while w < 180 and not self._stop.is_set():
+                                if not check_for_captcha(page):
+                                    break
+                                time.sleep(2); w += 2
+                            continue
+                        if result == "in_stock" and buy:
+                            self.status("IN STOCK — buying")
+                            notifier.send_event("🟢 In stock — buying", description=u, url=u,
+                                                color=0xF1C40F, ping=True)
+                            set_quantity(page, qty, self.log)
+                            human_pause(0.5, 1.0)
+                            try:
+                                buy.click()
+                            except Exception as e:
+                                self.log(f"buy click failed: {e}")
+                                continue
+                            human_pause(0.8, 1.5)
+                            outcome = complete_checkout(page, name, u, max_price, payment, False, self.log)
+                            if outcome in ("ok", "pending", "limit"):
+                                purchased.add(u)
+                                self.log(f"done: {u} ({outcome})")
+                        else:
+                            self.log(f"not in stock on verify: {u}")
+                finally:
+                    try:
+                        browser.close()
+                    except Exception:
+                        pass
+        except Exception as e:
+            self.log(f"watchlist checkout error: {e}")
 
     @staticmethod
     def _backoff(interval, errors):

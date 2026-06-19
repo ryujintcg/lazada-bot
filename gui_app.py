@@ -92,6 +92,9 @@ class TaskDialog(QDialog):
         self.url = QLineEdit(t.get("url", ""))
         self.keyword = QLineEdit(t.get("keyword", ""))
         self.keyword.setPlaceholderText("search-monitor: alerts on NEW matches (alert-only). Put a shop's store URL in Product URL to scope to one seller.")
+        self.watchlist = QPlainTextEdit(); self.watchlist.setMaximumHeight(90)
+        self.watchlist.setPlaceholderText("watch-list: one product URL per line — HTTP-polled in parallel; a browser opens only to check out a drop")
+        self.watchlist.setPlainText("\n".join(t.get("watchlist", []) or []))
         self.account = QComboBox(); self.account.addItem("")
         for a in accounts:
             self.account.addItem(a["label"])
@@ -120,6 +123,7 @@ class TaskDialog(QDialog):
         form.addRow("Name", self.name)
         form.addRow("Product URL", self.url)
         form.addRow("Keyword (search)", self.keyword)
+        form.addRow("Watch list (URLs)", self.watchlist)
         form.addRow("Account", self.account)
         form.addRow("Variant / Option", self.variant)
         form.addRow("Quantity", self.qty)
@@ -142,6 +146,7 @@ class TaskDialog(QDialog):
         return {
             "name": self.name.text().strip(), "url": self.url.text().strip(),
             "keyword": self.keyword.text().strip(),
+            "watchlist": [ln.strip() for ln in self.watchlist.toPlainText().splitlines() if ln.strip()],
             "account": self.account.currentText().strip(), "variant": self.variant.text().strip(),
             "quantity": self.qty.value(), "interval": self.interval.value(),
             "max_price": self.maxprice.value(), "start_at": self.start_at.text().strip(),
@@ -350,7 +355,13 @@ class MainWindow(QMainWindow):
             pl = t.get("proxies") or ([t["proxy"]] if t.get("proxy") else [])
             proxy_txt = f"{len(pl)} proxies" if len(pl) > 1 else (pl[0] if pl else "—")
             self.table.setItem(r, C_NAME, self._cell(t["name"]))
-            self.table.setItem(r, C_URL, self._cell(("🔎 " + t["keyword"]) if t.get("keyword") else t["url"]))
+            if t.get("watchlist"):
+                urlcell = f"📋 watch list ({len(t['watchlist'])} URLs)"
+            elif t.get("keyword"):
+                urlcell = "🔎 " + t["keyword"]
+            else:
+                urlcell = t["url"]
+            self.table.setItem(r, C_URL, self._cell(urlcell))
             self.table.setItem(r, C_ACCT, self._cell(t.get("account", "") or "default"))
             self.table.setItem(r, C_VAR, self._cell(t.get("variant", "") or "—", editable=True))
             self.table.setItem(r, C_QTY, self._cell(str(t.get("quantity", 1)), editable=True))
@@ -507,8 +518,8 @@ class MainWindow(QMainWindow):
         dlg = TaskDialog(self, self.proxies, self.accounts)
         if dlg.exec():
             t = dlg.get_task()
-            if not t["name"] or (not t["url"] and not t.get("keyword")):
-                QMessageBox.warning(self, "Missing", "Name and a URL or Keyword are required."); return
+            if not t["name"] or (not t["url"] and not t.get("keyword") and not t.get("watchlist")):
+                QMessageBox.warning(self, "Missing", "Name and a URL, Keyword, or Watch list are required."); return
             if any(x["name"] == t["name"] for x in self.tasks):
                 QMessageBox.warning(self, "Duplicate", "That name exists."); return
             self.tasks.append(t); self._save(); self._refresh_table()
