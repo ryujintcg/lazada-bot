@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.9.1 — UI refresh
+- **Status pills** — task status now shows as a clean, color-coded badge (green / red /
+  amber / gray / blue) instead of tinted text, with consistent padding and spacing.
+- **Summary bar** — a status bar shows live counts: running · idle · purchased · errors.
+- **Grouped toolbar** — run / task / settings clusters are separated, and Accounts,
+  Proxies, Discord, Alerts, Self-test and Changelog are tucked into a **⚙ Settings** menu
+  to declutter the top bar.
+- **Tidier table & buttons** — uniform row height, alternating row colors, a properly
+  centered Start/Stop button, full-value tooltips on the name/URL cells, an empty-state
+  hint, and a colored login status dot.
+- **Cleaner log** — monospace font, dimmed timestamps, a Clear button, and a cap on
+  retained lines (the on-disk log still keeps everything).
+
 ## v2.9.0 — desktop alerts + order history
 - **Desktop alerts** — when a task hits the events that need you (**in stock**,
   **order placed**, **CAPTCHA**), the bot now pops a **Windows notification** and

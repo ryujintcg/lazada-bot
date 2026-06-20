@@ -6,6 +6,7 @@ try:
 except Exception:
     pass
 
+import html
 import json
 import os
 import queue
@@ -15,12 +16,13 @@ import threading
 from datetime import datetime
 
 from PyQt6.QtCore import Qt, QObject, pyqtSignal
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QTableWidget, QTableWidgetItem, QTextEdit, QDialog, QLineEdit,
     QSpinBox, QDoubleSpinBox, QFormLayout, QPlainTextEdit, QInputDialog,
     QMessageBox, QHeaderView, QComboBox, QCheckBox, QSystemTrayIcon, QStyle,
+    QToolButton, QMenu, QFrame,
 )
 
 try:
@@ -43,16 +45,48 @@ PAYMENTS = ["", "PayNow Transfer", "Lazada Wallet", "Credit / Debit Card",
 COLS = ["Name", "Product URL", "Account", "Variant", "Qty", "Proxy", "Interval", "Mode", "Status", ""]
 C_NAME, C_URL, C_ACCT, C_VAR, C_QTY, C_PROXY, C_INT, C_MODE, C_STATUS, C_ACT = range(10)
 
-DARK_QSS = """
-QWidget { background:#1e1f22; color:#e3e3e6; font-size:12px; }
-QPushButton { background:#2b2d31; border:1px solid #3a3c41; padding:5px 9px; border-radius:5px; }
-QPushButton:hover { background:#35373c; }
-QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QPlainTextEdit, QTextEdit {
-  background:#2b2d31; border:1px solid #3a3c41; border-radius:4px; padding:3px; }
-QTableWidget { background:#232428; gridline-color:#3a3c41; }
-QHeaderView::section { background:#2b2d31; padding:4px; border:0; }
-QTableWidget::item:selected { background:#3a4a63; }
+ACCENT = "#f57224"  # Lazada orange
+
+DARK_QSS = f"""
+QWidget {{ background:#1e1f22; color:#e3e3e6; font-size:12px; }}
+QMainWindow, QDialog {{ background:#1e1f22; }}
+QLabel {{ background:transparent; }}
+QPushButton {{ background:#2b2d31; border:1px solid #3a3c41; padding:5px 10px; border-radius:6px; }}
+QPushButton:hover {{ background:#35373c; border-color:#4a4d54; }}
+QPushButton:pressed {{ background:#222327; }}
+QPushButton#primary {{ background:{ACCENT}; border:1px solid {ACCENT}; color:#1a1a1a; font-weight:bold; }}
+QPushButton#primary:hover {{ background:#ff8338; }}
+QPushButton#danger:hover {{ background:#5a2326; border-color:#ed4245; color:#ff6b6e; }}
+QToolButton {{ background:#2b2d31; border:1px solid #3a3c41; padding:5px 10px; border-radius:6px; }}
+QToolButton:hover {{ background:#35373c; border-color:#4a4d54; }}
+QToolButton::menu-indicator {{ image:none; }}
+QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QPlainTextEdit, QTextEdit {{
+  background:#2b2d31; border:1px solid #3a3c41; border-radius:5px; padding:4px; }}
+QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
+  border:1px solid {ACCENT}; }}
+QTableWidget {{ background:#232428; gridline-color:#2e3033; alternate-background-color:#26282c;
+  border:1px solid #3a3c41; border-radius:6px; }}
+QTableWidget::item {{ padding:5px 6px; }}
+QTableWidget::item:selected {{ background:#3a4a63; }}
+QHeaderView::section {{ background:#2b2d31; padding:6px; border:0; border-bottom:1px solid #3a3c41;
+  color:#b8b8bc; font-weight:bold; }}
+QMenu {{ background:#2b2d31; border:1px solid #3a3c41; }}
+QMenu::item {{ padding:6px 18px; }}
+QMenu::item:selected {{ background:{ACCENT}; color:#1a1a1a; }}
+QStatusBar {{ background:#202125; color:#b8b8bc; border-top:1px solid #3a3c41; }}
+QStatusBar::item {{ border:0; }}
+QScrollBar:vertical {{ background:#1e1f22; width:11px; margin:0; }}
+QScrollBar::handle:vertical {{ background:#3a3c41; border-radius:5px; min-height:24px; }}
+QScrollBar::handle:vertical:hover {{ background:#4a4d54; }}
+QScrollBar::add-line, QScrollBar::sub-line {{ height:0; }}
 """
+
+# Status pill palette: (background, foreground) keyed by status category.
+PILL_GREEN = ("#1e4d33", "#5fd587")
+PILL_RED = ("#4d2a2d", "#ff7b7e")
+PILL_AMBER = ("#4d3f1f", "#ffc04d")
+PILL_GRAY = ("#3a3d43", "#c2c2c6")
+PILL_BLUE = ("#2c3e4f", "#8fbce0")
 
 
 def load_phone():
@@ -63,15 +97,18 @@ def load_phone():
         return ""
 
 
-def status_color(s):
-    s = s.lower()
-    if "purchased" in s or "in stock" in s:
-        return QColor("#3ba55d")
-    if "error" in s or "failed" in s or "expired" in s or "captcha" in s:
-        return QColor("#ed4245")
-    if "buying" in s or "checking out" in s or "scheduled" in s:
-        return QColor("#faa61a")
-    return QColor("#a0a0a4")
+def pill_colors(status):
+    s = status.lower()
+    if any(k in s for k in ("purchased", "in stock", "ordered", "order placed", "all done")):
+        return PILL_GREEN
+    if any(k in s for k in ("error", "failed", "expired", "captcha", "unavailable", "sold out")):
+        return PILL_RED
+    if any(k in s for k in ("buying", "checking out", "checkout", "scheduled", "polling",
+                            "verifying", "scanning", "resuming", "drop", "login")):
+        return PILL_AMBER
+    if any(k in s for k in ("idle", "out of stock", "stopping")):
+        return PILL_GRAY
+    return PILL_BLUE
 
 
 class Bridge(QObject):
@@ -358,6 +395,7 @@ class MainWindow(QMainWindow):
         self._refreshing = False
         self.desktop_alerts = True; self.alert_sound = True
         self._last_alert = {}  # task name -> last alert category fired
+        self._statuses = {}    # task name -> latest status text (for the summary bar)
 
         self.bridge = Bridge()
         self.bridge.log.connect(self.on_log)
@@ -386,33 +424,143 @@ class MainWindow(QMainWindow):
 
         central = QWidget(); self.setCentralWidget(central)
         root = QVBoxLayout(central)
-        bar = QHBoxLayout()
+        bar = QHBoxLayout(); bar.setSpacing(6)
+
+        # Login control with a colored connection dot.
+        self.login_dot = QLabel("●"); self.login_dot.setStyleSheet("color:#ed4245; font-size:14px;")
         self.login_btn = QPushButton("🔐 Login"); self.login_btn.clicked.connect(self.login_clicked)
         self.login_lbl = QLabel("Not logged in")
-        bar.addWidget(self.login_btn); bar.addWidget(self.login_lbl); bar.addStretch(1)
-        for text, fn in [
-            ("➕ Add", self.add_task), ("✎ Edit", self.edit_task), ("⧉ Dup", self.dup_task),
-            ("🗑 Remove", self.remove_task), ("👤 Accounts…", self.manage_accounts),
-            ("🌐 Proxies…", self.manage_proxies), ("🔔 Discord…", self.manage_webhook),
-            ("🖥 Alerts…", self.manage_alerts), ("📜 Orders", self.show_orders),
-            ("🧪 Self-test", self.run_self_test), ("📋 Changelog", self.show_changelog),
-            ("⬇ Updates", self.check_updates),
-            ("▶ Start All", self.start_all), ("■ Stop All", self.stop_all),
-        ]:
+        bar.addWidget(self.login_dot); bar.addWidget(self.login_btn)
+        bar.addWidget(self.login_lbl); bar.addStretch(1)
+
+        # Cluster 1 — run controls.
+        start_all = QPushButton("▶ Start All"); start_all.setObjectName("primary")
+        start_all.clicked.connect(self.start_all)
+        stop_all = QPushButton("■ Stop All"); stop_all.clicked.connect(self.stop_all)
+        bar.addWidget(start_all); bar.addWidget(stop_all)
+        bar.addWidget(self._vsep())
+
+        # Cluster 2 — task CRUD.
+        for text, fn, oid in [("➕ Add", self.add_task, ""), ("✎ Edit", self.edit_task, ""),
+                              ("⧉ Dup", self.dup_task, ""), ("🗑 Remove", self.remove_task, "danger")]:
+            b = QPushButton(text); b.clicked.connect(fn)
+            if oid:
+                b.setObjectName(oid)
+            bar.addWidget(b)
+        bar.addWidget(self._vsep())
+
+        # Cluster 3 — settings menu + the rest.
+        settings = QToolButton(); settings.setText("⚙ Settings ▾")
+        settings.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        menu = QMenu(settings)
+        for label, fn in [("👤 Accounts…", self.manage_accounts), ("🌐 Proxies…", self.manage_proxies),
+                          ("🔔 Discord…", self.manage_webhook), ("🖥 Alerts…", self.manage_alerts)]:
+            menu.addAction(label, fn)
+        menu.addSeparator()
+        menu.addAction("🧪 Self-test", self.run_self_test)
+        menu.addAction("📋 Changelog", self.show_changelog)
+        settings.setMenu(menu)
+        bar.addWidget(settings)
+        for text, fn in [("📜 Orders", self.show_orders), ("⬇ Updates", self.check_updates)]:
             b = QPushButton(text); b.clicked.connect(fn); bar.addWidget(b)
         root.addLayout(bar)
 
+        self.empty_hint = QLabel("No tasks yet — click ➕ Add to create your first checkout task.")
+        self.empty_hint.setStyleSheet("color:#8a8a8e; padding:6px 2px;")
+        root.addWidget(self.empty_hint)
+
         self.table = QTableWidget(0, len(COLS))
         self.table.setHorizontalHeaderLabels(COLS)
-        self.table.horizontalHeader().setSectionResizeMode(C_URL, QHeaderView.ResizeMode.Stretch)
+        hh = self.table.horizontalHeader()
+        hh.setSectionResizeMode(C_URL, QHeaderView.ResizeMode.Stretch)
+        hh.setSectionResizeMode(C_ACT, QHeaderView.ResizeMode.Fixed)  # room to center the button
+        self.table.setColumnWidth(C_ACT, 120)
+        vh = self.table.verticalHeader()
+        vh.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)  # uniform row height
+        vh.setDefaultSectionSize(38)
         self.table.setEditTriggers(QTableWidget.EditTrigger.DoubleClicked)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setAlternatingRowColors(True)
         self.table.setSortingEnabled(True)
         self.table.itemChanged.connect(self.on_item_changed)
         root.addWidget(self.table, 3)
-        root.addWidget(QLabel("Log"))
+
+        log_head = QHBoxLayout()
+        log_head.addWidget(QLabel("Log")); log_head.addStretch(1)
+        clear_btn = QPushButton("🧹 Clear"); clear_btn.clicked.connect(self._clear_log)
+        log_head.addWidget(clear_btn)
+        root.addLayout(log_head)
         self.logview = QTextEdit(); self.logview.setReadOnly(True)
+        self.logview.document().setMaximumBlockCount(500)  # cap retained lines (file keeps full)
+        mono = QFont("Consolas", 9); mono.setStyleHint(QFont.StyleHint.Monospace)
+        self.logview.setFont(mono)
         root.addWidget(self.logview, 2)
+
+        # Summary bar — live run-state counts.
+        self.chip_run = self._make_chip(PILL_BLUE)
+        self.chip_idle = self._make_chip(PILL_GRAY)
+        self.chip_buy = self._make_chip(PILL_GREEN)
+        self.chip_err = self._make_chip(PILL_RED)
+        for chip in (self.chip_run, self.chip_idle, self.chip_buy, self.chip_err):
+            self.statusBar().addWidget(chip)
+        self._update_summary()
+
+    def _vsep(self):
+        f = QFrame(); f.setFrameShape(QFrame.Shape.VLine)
+        f.setStyleSheet("color:#3a3c41;")
+        return f
+
+    def _make_chip(self, colors):
+        bg, fg = colors
+        lbl = QLabel("")
+        lbl.setStyleSheet(f"background:{bg}; color:{fg}; border-radius:9px; padding:2px 10px; "
+                          "font-weight:bold; margin:2px 1px;")
+        return lbl
+
+    def _status_pill(self, status):
+        """A rounded status badge sized to its text, vertically centered on a
+        transparent cell (left-aligned, with a min width so short labels match)."""
+        bg, fg = pill_colors(status)
+        holder = QWidget(); holder.setStyleSheet("background:transparent;")
+        lay = QHBoxLayout(holder); lay.setContentsMargins(8, 0, 8, 0); lay.setSpacing(0)
+        lbl = QLabel(status)
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl.setStyleSheet(f"background:{bg}; color:{fg}; border-radius:10px; padding:4px 14px; "
+                          "min-width:46px; font-weight:bold;")
+        lay.addWidget(lbl, 0, Qt.AlignmentFlag.AlignVCenter)
+        lay.addStretch(1)
+        return holder
+
+    def _action_cell(self, name):
+        """A compact Start/Stop button centered in the cell at its natural size
+        (stretches on both sides stop it filling the whole cell)."""
+        holder = QWidget(); holder.setStyleSheet("background:transparent;")
+        lay = QHBoxLayout(holder); lay.setContentsMargins(0, 0, 0, 0); lay.setSpacing(0)
+        btn = QPushButton("▶ Start")
+        btn.setFixedHeight(26); btn.setFixedWidth(88)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.clicked.connect(lambda _, n=name: self.toggle_task(n))
+        lay.addStretch(1); lay.addWidget(btn, 0, Qt.AlignmentFlag.AlignVCenter); lay.addStretch(1)
+        return holder
+
+    def _clear_log(self):
+        self.logview.clear()
+
+    def _set_login_dot(self, color):
+        self.login_dot.setStyleSheet(f"color:{color}; font-size:14px;")
+
+    def _update_summary(self):
+        total = len(self.tasks)
+        running = len(self.workers)
+        purchased = sum(1 for s in self._statuses.values()
+                        if "purchased" in s.lower() or "ordered" in s.lower())
+        errors = sum(1 for n, s in self._statuses.items()
+                     if n in self.workers and ("error" in s.lower() or "failed" in s.lower()))
+        idle = max(0, total - running)
+        self.chip_run.setText(f"▶ {running} running")
+        self.chip_idle.setText(f"⏸ {idle} idle")
+        self.chip_buy.setText(f"✓ {purchased} purchased")
+        self.chip_err.setText(f"⚠ {errors} error(s)")
 
     # ---- persistence ----
     def _load(self):
@@ -436,6 +584,7 @@ class MainWindow(QMainWindow):
         if os.path.exists(engine.SESSION_FILE):
             self.logged_in = True
             self.login_lbl.setText("Session found (login to refresh)")
+            self._set_login_dot("#faa61a")  # amber: have a session, not freshly verified
         self._refresh_table()
 
     def _save(self):
@@ -464,26 +613,32 @@ class MainWindow(QMainWindow):
             r = self.table.rowCount(); self.table.insertRow(r)
             pl = t.get("proxies") or ([t["proxy"]] if t.get("proxy") else [])
             proxy_txt = f"{len(pl)} proxies" if len(pl) > 1 else (pl[0] if pl else "—")
-            self.table.setItem(r, C_NAME, self._cell(t["name"]))
+            name_it = self._cell(t["name"]); name_it.setToolTip(t["name"])
+            self.table.setItem(r, C_NAME, name_it)
             if t.get("watchlist"):
                 urlcell = f"📋 watch list ({len(t['watchlist'])} URLs)"
+                tip = "\n".join(t["watchlist"])
             elif t.get("keyword"):
                 urlcell = "🔎 " + t["keyword"]
+                tip = "keyword monitor: " + t["keyword"]
             else:
                 urlcell = t["url"]
-            self.table.setItem(r, C_URL, self._cell(urlcell))
+                tip = t["url"]
+            url_it = self._cell(urlcell); url_it.setToolTip(tip)
+            self.table.setItem(r, C_URL, url_it)
             self.table.setItem(r, C_ACCT, self._cell(t.get("account", "") or "default"))
             self.table.setItem(r, C_VAR, self._cell(t.get("variant", "") or "—", editable=True))
             self.table.setItem(r, C_QTY, self._cell(str(t.get("quantity", 1)), editable=True))
             self.table.setItem(r, C_PROXY, self._cell(proxy_txt))
             self.table.setItem(r, C_INT, self._cell(str(t.get("interval", 8)) + "s", editable=True))
             self.table.setItem(r, C_MODE, self._cell(self._mode(t)))
-            self.table.setItem(r, C_STATUS, self._cell("idle"))
-            btn = QPushButton("▶ Start")
-            btn.clicked.connect(lambda _, n=t["name"]: self.toggle_task(n))
-            self.table.setCellWidget(r, C_ACT, btn)
+            self.table.setItem(r, C_STATUS, self._cell(""))  # placeholder; pill widget sits on top
+            self.table.setCellWidget(r, C_STATUS, self._status_pill("idle"))
+            self.table.setCellWidget(r, C_ACT, self._action_cell(t["name"]))
         self.table.setSortingEnabled(True)
         self._refreshing = False
+        self.empty_hint.setVisible(not self.tasks)
+        self._update_summary()
 
     def on_item_changed(self, item):
         if self._refreshing:
@@ -524,11 +679,12 @@ class MainWindow(QMainWindow):
     # ---- logging ----
     def log_line(self, who, msg):
         ts = datetime.now().strftime("%H:%M:%S")
-        line = f"[{ts}] [{who}] {msg}"
-        self.logview.append(line)
+        self.logview.append(
+            f'<span style="color:#6a6a6e;">{ts}</span> '
+            f'<span style="color:#8a8a8e;">[{html.escape(who)}]</span> {html.escape(msg)}')
         try:
             with open(LOG_FILE, "a", encoding="utf-8") as f:
-                f.write(line + "\n")
+                f.write(f"[{ts}] [{who}] {msg}\n")
         except Exception:
             pass
 
@@ -536,12 +692,12 @@ class MainWindow(QMainWindow):
         self.log_line(name, msg)
 
     def on_status(self, name, status):
+        self._statuses[name] = status
         r = self._row_of(name)
         if r is not None:
             self._refreshing = True
-            item = self._cell(status)
-            item.setForeground(status_color(status))
-            self.table.setItem(r, C_STATUS, item)
+            self.table.setItem(r, C_STATUS, self._cell(""))  # placeholder; pill widget sits on top
+            self.table.setCellWidget(r, C_STATUS, self._status_pill(status))
             self._refreshing = False
         self.log_line(name, f"status → {status}")
         self._maybe_alert(name, status)
@@ -549,6 +705,7 @@ class MainWindow(QMainWindow):
             self._set_row_button(name, start=True)
             if status.startswith("purchased") or status.startswith("checkout"):
                 self.workers.pop(name, None)
+        self._update_summary()
 
     # ---- desktop alerts ----
     @staticmethod
@@ -604,7 +761,8 @@ class MainWindow(QMainWindow):
         r = self._row_of(name)
         if r is None:
             return
-        btn = self.table.cellWidget(r, C_ACT)
+        holder = self.table.cellWidget(r, C_ACT)
+        btn = holder.findChild(QPushButton) if holder else None
         if btn:
             btn.setText("▶ Start" if start else "■ Stop")
 
@@ -643,6 +801,7 @@ class MainWindow(QMainWindow):
         self._login_busy = True
         self.login_btn.setEnabled(False)
         self.login_lbl.setText(f"Logging in ({account_label or 'default'})…")
+        self._set_login_dot("#faa61a")  # amber while in progress
 
         def get_otp():
             while not self.otp_queue.empty():
@@ -670,9 +829,11 @@ class MainWindow(QMainWindow):
         self.login_btn.setEnabled(True)
         if ok:
             self.logged_in = True
-            self.login_lbl.setText(f"✅ Logged in ({label})")
+            self.login_lbl.setText(f"Logged in ({label})")
+            self._set_login_dot("#3ba55d")  # green
         else:
-            self.login_lbl.setText(f"❌ Login failed ({label})")
+            self.login_lbl.setText(f"Login failed ({label})")
+            self._set_login_dot("#ed4245")  # red
 
     def on_needs_login(self, name, account, proxy):
         if not self._login_busy:
@@ -727,6 +888,7 @@ class MainWindow(QMainWindow):
         if name in self.workers:
             self.stop_task(name)
         self.tasks = [x for x in self.tasks if x["name"] != name]
+        self._statuses.pop(name, None); self._last_alert.pop(name, None)
         self._save(); self._refresh_table()
 
     def manage_accounts(self):
@@ -787,17 +949,21 @@ class MainWindow(QMainWindow):
         worker.start()
         self._set_row_button(name, start=False)
         self.log_line(name, "started")
+        self._update_summary()
 
     def stop_task(self, name):
         w = self.workers.pop(name, None)
         if w:
             w.stop(); self.log_line(name, "stopping…")
         self._set_row_button(name, start=True)
+        self._statuses[name] = "idle"
         r = self._row_of(name)
         if r is not None:
             self._refreshing = True
-            self.table.setItem(r, C_STATUS, self._cell("idle"))
+            self.table.setItem(r, C_STATUS, self._cell(""))  # placeholder; pill widget sits on top
+            self.table.setCellWidget(r, C_STATUS, self._status_pill("idle"))
             self._refreshing = False
+        self._update_summary()
 
     def start_all(self):
         for t in self.tasks:
