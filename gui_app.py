@@ -15,14 +15,14 @@ import subprocess
 import threading
 from datetime import datetime
 
-from PyQt6.QtCore import Qt, QObject, pyqtSignal
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtCore import Qt, QObject, pyqtSignal, QSize, QRect
+from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPainter
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QTableWidget, QTableWidgetItem, QTextEdit, QDialog, QLineEdit,
     QSpinBox, QDoubleSpinBox, QFormLayout, QPlainTextEdit, QInputDialog,
     QMessageBox, QHeaderView, QComboBox, QCheckBox, QSystemTrayIcon, QStyle,
-    QToolButton, QMenu, QFrame,
+    QToolButton, QMenu, QFrame, QStyledItemDelegate,
 )
 
 try:
@@ -109,6 +109,45 @@ def pill_colors(status):
     if any(k in s for k in ("idle", "out of stock", "stopping")):
         return PILL_GRAY
     return PILL_BLUE
+
+
+class StatusPillDelegate(QStyledItemDelegate):
+    """Paints the Status cell as a rounded colour pill. Drawn via a delegate (not
+    a cell widget) so the status is real item data — the column's auto-size sees
+    its true width on every change, so longer statuses never clip."""
+    _PADX, _PADY, _MARGIN = 12, 4, 6
+
+    @staticmethod
+    def _bold(option):
+        f = QFont(option.font); f.setBold(True)
+        return f
+
+    def paint(self, painter, option, index):
+        status = index.data(Qt.ItemDataRole.DisplayRole) or ""
+        bg, fg = pill_colors(status)
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        if option.state & QStyle.StateFlag.State_Selected:
+            painter.fillRect(option.rect, option.palette.highlight())
+        painter.setFont(self._bold(option))
+        fm = painter.fontMetrics()
+        pill_w = fm.horizontalAdvance(status) + self._PADX * 2
+        pill_h = fm.height() + self._PADY * 2
+        x = option.rect.x() + self._MARGIN
+        y = option.rect.y() + (option.rect.height() - pill_h) // 2
+        rect = QRect(x, y, pill_w, pill_h)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(bg))
+        painter.drawRoundedRect(rect, 10, 10)
+        painter.setPen(QColor(fg))
+        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, status)
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        status = index.data(Qt.ItemDataRole.DisplayRole) or ""
+        fm = QFontMetrics(self._bold(option))
+        return QSize(fm.horizontalAdvance(status) + self._PADX * 2 + self._MARGIN * 2,
+                     fm.height() + self._PADY * 2 + 6)
 
 
 class Bridge(QObject):
@@ -476,6 +515,7 @@ class MainWindow(QMainWindow):
         # Status auto-fits the widest pill so longer statuses (purchased, buying…)
         # never clip; the stretched URL column absorbs the width change.
         hh.setSectionResizeMode(C_STATUS, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.setItemDelegateForColumn(C_STATUS, StatusPillDelegate(self.table))
         hh.setSectionResizeMode(C_ACT, QHeaderView.ResizeMode.Fixed)  # room to center the button
         self.table.setColumnWidth(C_ACT, 120)
         vh = self.table.verticalHeader()
@@ -520,22 +560,13 @@ class MainWindow(QMainWindow):
                           "font-weight:bold; margin:2px 1px;")
         return lbl
 
-    def _status_pill(self, status):
-        """A rounded status badge, vertically centered on a transparent cell.
-        Sized to its text; the Status column is wide enough for the common
-        statuses, and the full text is in a tooltip for any unusually long one
-        (left-aligned so overflow clips at the end, not the middle)."""
-        bg, fg = pill_colors(status)
-        holder = QWidget(); holder.setStyleSheet("background:transparent;")
-        holder.setToolTip(status)
-        lay = QHBoxLayout(holder); lay.setContentsMargins(6, 0, 6, 0); lay.setSpacing(0)
-        lbl = QLabel(status); lbl.setToolTip(status)
-        lbl.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-        lbl.setStyleSheet(f"background:{bg}; color:{fg}; border-radius:10px; padding:4px 12px; "
-                          "min-width:46px; font-weight:bold;")
-        lay.addWidget(lbl, 0, Qt.AlignmentFlag.AlignVCenter)
-        lay.addStretch(1)
-        return holder
+    def _status_item(self, status):
+        """Status cell as a real (non-editable) item — the pill is painted by
+        StatusPillDelegate. Full text on hover."""
+        it = QTableWidgetItem(status)
+        it.setFlags(it.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        it.setToolTip(status)
+        return it
 
     def _action_cell(self, name):
         """A compact Start/Stop button centered in the cell at its natural size
@@ -638,8 +669,7 @@ class MainWindow(QMainWindow):
             self.table.setItem(r, C_PROXY, self._cell(proxy_txt))
             self.table.setItem(r, C_INT, self._cell(str(t.get("interval", 8)) + "s", editable=True))
             self.table.setItem(r, C_MODE, self._cell(self._mode(t)))
-            self.table.setItem(r, C_STATUS, self._cell(""))  # placeholder; pill widget sits on top
-            self.table.setCellWidget(r, C_STATUS, self._status_pill("idle"))
+            self.table.setItem(r, C_STATUS, self._status_item("idle"))
             self.table.setCellWidget(r, C_ACT, self._action_cell(t["name"]))
         self.table.setSortingEnabled(True)
         self._refreshing = False
@@ -702,8 +732,7 @@ class MainWindow(QMainWindow):
         r = self._row_of(name)
         if r is not None:
             self._refreshing = True
-            self.table.setItem(r, C_STATUS, self._cell(""))  # placeholder; pill widget sits on top
-            self.table.setCellWidget(r, C_STATUS, self._status_pill(status))
+            self.table.setItem(r, C_STATUS, self._status_item(status))
             self._refreshing = False
         self.log_line(name, f"status → {status}")
         self._maybe_alert(name, status)
@@ -966,8 +995,7 @@ class MainWindow(QMainWindow):
         r = self._row_of(name)
         if r is not None:
             self._refreshing = True
-            self.table.setItem(r, C_STATUS, self._cell(""))  # placeholder; pill widget sits on top
-            self.table.setCellWidget(r, C_STATUS, self._status_pill("idle"))
+            self.table.setItem(r, C_STATUS, self._status_item("idle"))
             self._refreshing = False
         self._update_summary()
 

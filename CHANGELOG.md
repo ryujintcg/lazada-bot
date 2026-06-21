@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.9.7 — status pill clipping fixed properly
+- Status pills are now painted by a delegate on real item data, so the column
+  resizes correctly on every status change — longer statuses like "scheduled 13:00"
+  no longer clip. The Status column is also sortable now.
+
 ## v2.9.6 — status pill fix
 - The Status column now auto-fits its contents, so longer statuses (e.g. "purchased",
   "IN STOCK — buying") no longer get clipped. Full text also shows on hover.

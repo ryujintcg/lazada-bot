@@ -24,7 +24,7 @@ try:
 except Exception:  # new module: may be absent on clients updated with an older whitelist
     secure_store = None
 
-VERSION = "2.9.6"
+VERSION = "2.9.7"
 HERE = os.path.dirname(__file__)
 SESSION_FILE = os.path.join(HERE, "lazada_session.json")  # default profile
 CHROME_CHANNEL = "chrome"

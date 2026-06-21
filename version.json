@@ -1,7 +1,7 @@
 {
-  "version": "2.9.6",
+  "version": "2.9.7",
   "url": "https://github.com/Rayzadaa/Yunara/releases/latest/download/Lazada-Bot-Share.zip",
-  "sha256": "5bdc484e1e2ab4e8e080ba5509c1ba721fa2ebbd4a1903ee7a4caf2324f2d930",
-  "signature": "b6ae531a257e1972d72bcf856f30b679dd5d56918c7ee57497a6ebb389333c5ef6d106187b93d55711563d82252e3d1876d92765b67d1ae986c8ab9073ae810c",
-  "notes": "UI fix: the Status column auto-fits so longer statuses (purchased, buying\u2026) no longer get clipped."
+  "sha256": "0cb1e9d7fb9ca9e55199b4cf3a7f3ac82f55549689357977ec6d8f0b719cf567",
+  "signature": "c4dd1de01f337c52d8d33d78e7bdb5b2cee981d4c7d561c53e20f6b8c657ec48340a3977842aaf48f8b69a3a93d0a11e61fdca2ad43c832a14940f4bd44ef205",
+  "notes": "UI fix: status pills are delegate-painted so the column resizes on every change \u2014 longer statuses (scheduled 13:00, etc.) no longer clip."
 }
