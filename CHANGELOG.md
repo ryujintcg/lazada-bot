@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.9.3 — updater points at renamed repo
+- The in-app updater now points at the project's new repository name, so auto-updates
+  keep working after the repo rename. No feature changes.
+
 ## v2.9.2 — updater points at renamed repo
 - The in-app updater now points at the project's new GitHub location, so auto-updates
   keep working after the account rename. No feature changes.
