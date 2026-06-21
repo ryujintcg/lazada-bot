@@ -473,6 +473,9 @@ class MainWindow(QMainWindow):
         self.table.setHorizontalHeaderLabels(COLS)
         hh = self.table.horizontalHeader()
         hh.setSectionResizeMode(C_URL, QHeaderView.ResizeMode.Stretch)
+        # Status auto-fits the widest pill so longer statuses (purchased, buying…)
+        # never clip; the stretched URL column absorbs the width change.
+        hh.setSectionResizeMode(C_STATUS, QHeaderView.ResizeMode.ResizeToContents)
         hh.setSectionResizeMode(C_ACT, QHeaderView.ResizeMode.Fixed)  # room to center the button
         self.table.setColumnWidth(C_ACT, 120)
         vh = self.table.verticalHeader()
@@ -518,14 +521,17 @@ class MainWindow(QMainWindow):
         return lbl
 
     def _status_pill(self, status):
-        """A rounded status badge sized to its text, vertically centered on a
-        transparent cell (left-aligned, with a min width so short labels match)."""
+        """A rounded status badge, vertically centered on a transparent cell.
+        Sized to its text; the Status column is wide enough for the common
+        statuses, and the full text is in a tooltip for any unusually long one
+        (left-aligned so overflow clips at the end, not the middle)."""
         bg, fg = pill_colors(status)
         holder = QWidget(); holder.setStyleSheet("background:transparent;")
-        lay = QHBoxLayout(holder); lay.setContentsMargins(8, 0, 8, 0); lay.setSpacing(0)
-        lbl = QLabel(status)
-        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.setStyleSheet(f"background:{bg}; color:{fg}; border-radius:10px; padding:4px 14px; "
+        holder.setToolTip(status)
+        lay = QHBoxLayout(holder); lay.setContentsMargins(6, 0, 6, 0); lay.setSpacing(0)
+        lbl = QLabel(status); lbl.setToolTip(status)
+        lbl.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+        lbl.setStyleSheet(f"background:{bg}; color:{fg}; border-radius:10px; padding:4px 12px; "
                           "min-width:46px; font-weight:bold;")
         lay.addWidget(lbl, 0, Qt.AlignmentFlag.AlignVCenter)
         lay.addStretch(1)

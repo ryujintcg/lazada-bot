@@ -1,7 +1,7 @@
 {
-  "version": "2.9.5",
+  "version": "2.9.6",
   "url": "https://github.com/Rayzadaa/Yunara/releases/latest/download/Lazada-Bot-Share.zip",
-  "sha256": "93aabefc1371d41b4bbca9ce4c7adb9f06e17f7445f676a50c538a547c18d0cb",
-  "signature": "5c3ffb8cc7be9b1410b1197e244c06b595c395cf64b2652789e7bcf750b10f099c85d9739135060150b97160af12efa923d130907f9df1de8c8254ad04ea720a",
-  "notes": "Security: login session files are now encrypted at rest (Windows DPAPI), and fast-monitor requests are restricted to Lazada hosts."
+  "sha256": "5bdc484e1e2ab4e8e080ba5509c1ba721fa2ebbd4a1903ee7a4caf2324f2d930",
+  "signature": "b6ae531a257e1972d72bcf856f30b679dd5d56918c7ee57497a6ebb389333c5ef6d106187b93d55711563d82252e3d1876d92765b67d1ae986c8ab9073ae810c",
+  "notes": "UI fix: the Status column auto-fits so longer statuses (purchased, buying\u2026) no longer get clipped."
 }

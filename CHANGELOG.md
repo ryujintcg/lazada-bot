@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.9.6 — status pill fix
+- The Status column now auto-fits its contents, so longer statuses (e.g. "purchased",
+  "IN STOCK — buying") no longer get clipped. Full text also shows on hover.
+
 ## v2.9.5 — encrypted sessions at rest
 - **Session files are now encrypted on disk.** Login cookies (full account access)
   were stored as plaintext; they're now sealed with Windows DPAPI bound to your
