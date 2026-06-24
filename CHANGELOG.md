@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.9.10 — fix: Turbo blocked the PayNow QR
+- **Bugfix:** in Turbo mode the image blocker stayed on during checkout, so the
+  PayNow **QR code** (and the payment-method icons) didn't load — leaving checkout
+  stuck on "Select Payment Method" and no QR to scan. Image blocking is now limited
+  to **monitoring only** and is turned off the moment a buy starts, so the checkout
+  page and QR render normally. (If you weren't using Turbo, this never affected you.)
+
 ## v2.9.9 — refreshed user guide
 - **GUIDE.md** rewritten and brought up to date: the Settings menu, desktop alerts,
   multi-account login, all task options (incl. Turbo and Fast monitor), order history,

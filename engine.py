@@ -25,7 +25,7 @@ try:
 except Exception:  # new module: may be absent on clients updated with an older whitelist
     secure_store = None
 
-VERSION = "2.9.9"
+VERSION = "2.9.10"
 HERE = os.path.dirname(__file__)
 SESSION_FILE = os.path.join(HERE, "lazada_session.json")  # default profile
 CHROME_CHANNEL = "chrome"
@@ -1028,6 +1028,7 @@ class TaskWorker(threading.Thread):
                                     self.status("out of stock (fast)")
                                     self._wait(interval); continue
 
+                            blocker.enabled = turbo  # block images only while monitoring
                             self.status("checking")
                             result, buy_btn = check_stock(page, url, variant, self.log)
 
@@ -1085,6 +1086,7 @@ class TaskWorker(threading.Thread):
                                 self.status("IN STOCK — buying")
                                 notifier.send_event("🟢 In Stock — buying", description=name, url=url,
                                                     color=0xF1C40F, fields={"Qty": qty}, ping=True)
+                                blocker.enabled = False  # checkout/payment icons + PayNow QR need images
                                 if not buy_btn:
                                     self.log("Buy Now missing despite stock")
                                     self._wait(interval); continue
