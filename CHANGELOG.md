@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.9.9 — refreshed user guide
+- **GUIDE.md** rewritten and brought up to date: the Settings menu, desktop alerts,
+  multi-account login, all task options (incl. Turbo and Fast monitor), order history,
+  CAPTCHA handling, and the signed-update/encrypted-session security model — plus the
+  full tips section for maximising checkout win-rate.
+
 ## v2.9.8 — faster checkout + better CAPTCHA handling
 - **Turbo mode** (per-task option): blocks images/media while monitoring for quicker
   page loads, and trims the anti-detection delays + skips debug screenshots during
